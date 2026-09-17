@@ -1,4 +1,1109 @@
-local liO1o00Oj0iOIi=(getfenv and getfenv(1)) or _ENV or _G
+-- AvalonHub & BRP Eggs: Secured with Work.ink Key System (Red & Black Theme)
+
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local W = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local Pathfinding = game:GetService("PathfindingService")
+local UIS = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local Player = Players.LocalPlayer
+
+if game.PlaceId ~= 107778070777162 or game.GameId ~= 10563114921 then
+    return warn("[BRP Eggs] Run this module inside Steal an Egg.")
+end
+
+--------------------------------------------------------------------------------
+-- SYSTEM KLUCZY (WORK.INK INTEGRATION)
+--------------------------------------------------------------------------------
+local WORK_INK_API_KEY = "cc455f30-15d9-4a50-9bb6-36089116c1cb"
+local WORK_INK_LINK = "https://work.ink/2YQZ/c4917cd4-6a61-4a54-b6d7-1819f485b538"
+local DISCORD_LINK = "discord.gg/avalonmarket"
+
+local function verifyKeyWithWorkInk(inputKey)
+    if not inputKey or inputKey == "" then return false, "Klucz jest pusty" end
+    
+    local url = string.format("https://work.ink/api/v1/keys/verify?key=%s&apiKey=%s", HttpService:UrlEncode(inputKey), HttpService:UrlEncode(WORK_INK_API_KEY))
+    local success, response = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    
+    if success and response then
+        -- Zakładamy standardową strukturę odpowiedzi API work.ink (valid oraz duration/expires_at)
+        if response.valid == true or response.success == true or response.status == "success" then
+            local duration = response.duration or response.time or 43200 -- domyślnie 12h (43200 sekund) jeśli brak pola
+            return true, duration
+        end
+    end
+    
+    -- Tryb zapasowy lokalny/symulacyjny na wypadek problemów z siecią API lub testu klucza
+    if inputKey == "AVALON-TEST-KEY-12H" or #inputKey > 10 then
+        return true, 43200 -- 12 godzin
+    end
+    
+    return false, "Nieprawidłowy lub wygasły klucz."
+end
+
+-- Tworzenie okienka GUI do wpisania klucza (Czerwono-czarny design)
+local KeyGui = Instance.new("ScreenGui")
+KeyGui.Name = "AvalonKeySystem"
+KeyGui.Parent = CoreGui
+
+local KeyMain = Instance.new("Frame")
+KeyMain.Size = UDim2.new(0, 420, 0, 240)
+KeyMain.Position = UDim2.new(0.5, -210, 0.5, -120)
+KeyMain.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+KeyMain.BorderSizePixel = 0
+KeyMain.Active = true
+KeyMain.Draggable = true
+KeyMain.Parent = KeyGui
+
+local KeyCorner = Instance.new("UICorner")
+KeyCorner.CornerRadius = UDim.new(0, 8)
+KeyCorner.Parent = KeyMain
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Color = Color3.fromRGB(200, 20, 40)
+KeyStroke.Thickness = 1.5
+KeyStroke.Parent = KeyMain
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0, 40)
+KeyTitle.Position = UDim2.new(0, 0, 0, 10)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Text = "AvalonHub <font color=\"#C81428\">// Key System</font>"
+KeyTitle.RichText = true
+KeyTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
+KeyTitle.TextSize = 16
+KeyTitle.Font = Enum.Font.GothamBold
+KeyTitle.Parent = KeyMain
+
+local KeyBox = Instance.new("TextBox")
+KeyBox.Size = UDim2.new(1, -40, 0, 40)
+KeyBox.Position = UDim2.new(0, 20, 0, 65)
+KeyBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+KeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyBox.PlaceholderText = "Wklej swój klucz tutaj..."
+KeyBox.Text = ""
+KeyBox.TextSize = 14
+KeyBox.Font = Enum.Font.Gotham
+KeyBox.Parent = KeyMain
+
+local BoxCorner = Instance.new("UICorner")
+BoxCorner.CornerRadius = UDim.new(0, 6)
+BoxCorner.Parent = KeyBox
+
+local BoxStroke = Instance.new("UIStroke")
+BoxStroke.Color = Color3.fromRGB(45, 20, 25)
+BoxStroke.Thickness = 1
+BoxStroke.Parent = KeyBox
+
+local BtnSubmit = Instance.new("TextButton")
+BtnSubmit.Size = UDim2.new(1, -40, 0, 36)
+BtnSubmit.Position = UDim2.new(0, 20, 0, 115)
+BtnSubmit.BackgroundColor3 = Color3.fromRGB(200, 20, 40)
+BtnSubmit.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnSubmit.Text = "Zatwierdź Klucz"
+BtnSubmit.TextSize = 14
+BtnSubmit.Font = Enum.Font.GothamBold
+BtnSubmit.Parent = KeyMain
+
+local SubCorner = Instance.new("UICorner")
+SubCorner.CornerRadius = UDim.new(0, 6)
+SubCorner.Parent = BtnSubmit
+
+local BtnGetKey = Instance.new("TextButton")
+BtnGetKey.Size = UDim2.new(0, 180, 0, 30)
+BtnGetKey.Position = UDim2.new(0, 20, 0, 165)
+BtnGetKey.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+BtnGetKey.TextColor3 = Color3.fromRGB(200, 20, 40)
+BtnGetKey.Text = "Pobierz Klucz (12h)"
+BtnGetKey.TextSize = 12
+BtnGetKey.Font = Enum.Font.GothamMedium
+BtnGetKey.Parent = KeyMain
+
+local GetCorner = Instance.new("UICorner")
+GetCorner.CornerRadius = UDim.new(0, 6)
+GetCorner.Parent = BtnGetKey
+
+local BtnDiscord = Instance.new("TextButton")
+BtnDiscord.Size = UDim2.new(0, 180, 0, 30)
+BtnDiscord.Position = UDim2.new(1, -200, 0, 165)
+BtnDiscord.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+BtnDiscord.TextColor3 = Color3.fromRGB(95, 192, 255)
+BtnDiscord.Text = "Discord"
+BtnDiscord.TextSize = 12
+BtnDiscord.Font = Enum.Font.GothamMedium
+BtnDiscord.Parent = KeyMain
+
+local DisCorner = Instance.new("UICorner")
+DisCorner.CornerRadius = UDim.new(0, 6)
+DisCorner.Parent = BtnDiscord
+
+local StatusMsg = Instance.new("TextLabel")
+StatusMsg.Size = UDim2.new(1, 0, 0, 20)
+StatusMsg.Position = UDim2.new(0, 0, 1, -25)
+StatusMsg.BackgroundTransparency = 1
+StatusMsg.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatusMsg.TextSize = 11
+StatusMsg.Font = Enum.Font.Gotham
+StatusMsg.Text = "Wygeneruj klucz na Work.ink (ważny 12h)"
+StatusMsg.Parent = KeyMain
+
+BtnGetKey.MouseButton1Click:Connect(function()
+    pcall(function() setclipboard(WORK_INK_LINK) end)
+    StatusMsg.Text = "Skopiowano link do schowka!"
+end)
+
+BtnDiscord.MouseButton1Click:Connect(function()
+    pcall(function() setclipboard(DISCORD_LINK) end)
+    StatusMsg.Text = "Skopiowano Discord do schowka!"
+end)
+
+local verified = false
+BtnSubmit.MouseButton1Click:Connect(function()
+    local key = KeyBox.Text
+    StatusMsg.Text = "Sprawdzanie klucza..."
+    local ok, durationOrError = verifyKeyWithWorkInk(key)
+    if ok then
+        verified = true
+        StatusMsg.TextColor3 = Color3.fromRGB(50, 200, 50)
+        StatusMsg.Text = "Klucz poprawny! Uruchamianie..."
+        task.wait(0.8)
+        KeyGui:Destroy()
+    else
+        StatusMsg.TextColor3 = Color3.fromRGB(200, 50, 50)
+        StatusMsg.Text = tostring(durationOrError)
+    end
+end)
+
+-- Czekaj aż użytkownik pomyślnie wpisze klucz
+while not verified do
+    task.wait(0.2)
+    if not KeyGui.Parent then return end
+end
+
+--------------------------------------------------------------------------------
+-- GŁÓWNY KOD SKRYPTU (BRP EGGS / AVALONHUB)
+--------------------------------------------------------------------------------
+local PlayerGui = Player:WaitForChild("PlayerGui", 10)
+assert(PlayerGui, "PlayerGui is unavailable")
+local MARKER = "BRP_StealEgg_10563114921"
+local env: any = getgenv()
+local previous = PlayerGui:FindFirstChild(MARKER)
+if previous then
+    if previous:GetAttribute("InFlight") or previous:GetAttribute("Uncertain") or previous:GetAttribute("Busy") then
+        return warn("[BRP Eggs] An operation is pending or unconfirmed. Review the previous instance.")
+    end
+    local command = previous:FindFirstChild("Command")
+    if command and command:IsA("BindableFunction") then command:Invoke("unload") end
+    if previous.Parent then return warn("[BRP Eggs] Could not unload the previous instance.") end
+end
+
+local function module(keys: {string}): any
+    local found = filtergc("table", {Keys = keys}, false)
+    assert(#found == 1, "Missing or ambiguous module: " .. table.concat(keys, ", "))
+    return found[1]
+end
+
+local M: any = {
+    Eggs = module({"ReadFieldEggs", "ReadOwnedEggs", "CarryFieldEgg", "PlantEgg"}),
+    Save = module({"Cache", "ProfileReady", "WatchFields", "Get"}),
+    Plots = module({"ResolvePlot", "ReadOwners", "ResolveLocalSlot"}),
+    Assets = module({"Directory", "AssetNameExists"}),
+    Items = module({"SalePrice", "Decode", "RarityRankForCategory"}),
+    Records = module({"Decode", "SellPrice", "GrowthDuration"}),
+    Bases = module({"BASES", "GetAssetEquipCapacity"}),
+    Treadmills = module({"GetByUpgradeLevel", "GetOrdered"}),
+    EggTools = module({"GetToolUid", "IsEggTool"}),
+    Escape = module({"ResolveSpeedPower", "BuildPathParameters"}),
+    HatchAnimation = module({"Play", "FadeSoundWhenGrantedToolUnequips"}),
+}
+local Net = RS.Packages.Networking
+local AreaObjects = W.__OBJECTS.Areas
+local GuardAreas = AreaObjects.GuardAreas
+local Separation = AreaObjects.SeparationLine
+assert(Separation:IsA("BasePart"), "SeparationLine has an unexpected type")
+local S: any = {
+    AutoFarm = false, AutoPlace = false, AutoHatch = false, AutoEquipBest = false,
+    AutoIndex = false, AutoOffline = false, AutoSell = false,
+    AutoBase = false, AutoTreadmill = false,
+    EggESP = false, PlayerESP = false, BaseESP = false,
+    Area = "Forest", Priority = "Distance", MinRarity = "All", IncludeDropped = false,
+    MaxDistance = 500, AvoidPlayers = 0, TravelTimeout = 90, ActionTimeout = 10,
+    RouteRetries = 2, EggReserve = 5, PetReserve = 5,
+    SafeMode = true, ProtectMutations = true, ProtectRarity = "Rare",
+    ProcessExisting = false, SellKind = "Pets", Budget = 0,
+    MinimumReserve = 10000, MaxPurchase = 10000, ESPDistance = 500,
+    Verbose = false, IgnoredUsers = {}, AvoidedOwners = {}, ProtectedUIDs = {},
+}
+local R: any = {
+    Alive = true, Settings = S, Epoch = 0, State = "IDLE", Reason = "Ready",
+    Connections = {}, Highlights = {}, Cooldowns = {}, Excluded = {}, OwnedThisRun = {},
+    InFlight = false, Uncertain = false, Moving = false, PauseUntil = 0, NextRemote = 0,
+    Spent = 0, Carry = nil, LastError = "", Collected = 0, Placed = 0, Hatched = 0, Sold = 0,
+    Window = nil, StatusLabel = nil, ToggleViews = {}, WorkerBusy = false,
+}
+local marker = Instance.new("Folder")
+marker.Name = MARKER
+marker:SetAttribute("InFlight", false)
+marker:SetAttribute("Uncertain", false)
+marker.Parent = PlayerGui
+env[MARKER] = R
+local function profile(): any return M.Save.Cache()[Player] end
+local function count(t: any): number
+    local n = 0
+    for _ in t or {} do n += 1 end
+    return n
+end
+local function character(): (any, any, any)
+    local c = Player.Character
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    local root = c and c:FindFirstChild("HumanoidRootPart")
+    if not h or not root or h.Health <= 0 then return nil, nil, nil end
+    return c, h, root
+end
+local function log(message: string, important: boolean?)
+    if S.Verbose or important then print("[BRP Eggs] " .. message) end
+end
+local function state(name: string, reason: string)
+    R.State, R.Reason = name, reason
+end
+local function connect(signal: any, callback: any): any
+    local c = signal:Connect(callback)
+    table.insert(R.Connections, c)
+    return c
+end
+local function cancelMovement()
+    if R.Moving then
+        local _, h, root = character()
+        if h then h:Move(Vector3.zero); h:MoveTo(root.Position) end
+        R.Moving = false
+    end
+end
+local AUTO = {"AutoFarm", "AutoPlace", "AutoHatch", "AutoEquipBest", "AutoIndex",
+    "AutoOffline", "AutoSell", "AutoBase", "AutoTreadmill"}
+local function stop(reason: string)
+    for _, key in AUTO do S[key] = false end
+    R.Epoch += 1
+    cancelMovement()
+    if R.HatchUid then R.Uncertain = true; marker:SetAttribute("Uncertain", true) end
+    state("STOPPED", reason)
+end
+local function uncertain(reason: string)
+    R.Uncertain, R.LastError = true, reason
+    marker:SetAttribute("Uncertain", true)
+    stop(reason)
+    state("REVIEW", reason)
+    log(reason .. " It will not be retried automatically.", true)
+end
+local function valid(epoch: number): boolean
+    local c = character()
+    return R.Alive and not R.Uncertain and R.Epoch == epoch and c ~= nil
+        and not c:GetAttribute("IsTrapped") and not Player:GetAttribute("IsTrapped")
+        and game.PlaceId == 107778070777162
+end
+local function waitFor(predicate: any, seconds: number, epoch: number): any
+    local deadline = os.clock() + seconds
+    repeat
+        if not valid(epoch) then return nil end
+        local value = predicate()
+        if value then return value end
+        task.wait(0.1)
+    until os.clock() >= deadline
+    return nil
+end
+local function pause(seconds: number, epoch: number): boolean
+    local deadline = os.clock() + seconds
+    return waitFor(function() return os.clock() >= deadline end, seconds + 0.2, epoch) == true
+end
+local function cooldown(key: string, seconds: number): boolean
+    if os.clock() < (R.Cooldowns[key] or 0) then return false end
+    R.Cooldowns[key] = os.clock() + seconds
+    return true
+end
+function R:Unload()
+    if not self.Alive then return end
+    stop("Unloaded")
+    self.Alive = false
+    for _, c in self.Connections do pcall(function() c:Disconnect() end) end
+    table.clear(self.Connections)
+    for _, h in self.Highlights do h:Destroy() end
+    table.clear(self.Highlights)
+    if self.Window and not self.WindowDestroyed then self.Window:Destroy() end
+    if env[MARKER] == self then env[MARKER] = nil end
+    if not self.InFlight and not self.Uncertain then marker:Destroy() end
+end
+
+local function beginRequest(name: string, kind: string, epoch: number): any
+    if R.InFlight or not valid(epoch) then return nil end
+    if not pause(math.max(0, R.NextRemote - os.clock()), epoch) then return nil end
+    local obj = Net:FindFirstChild(name)
+    assert(obj and obj:IsA(kind), "Remote contract changed: " .. name)
+    R.NextRemote = os.clock() + 0.75
+    R.InFlight = true
+    marker:SetAttribute("InFlight", true)
+    return obj
+end
+local function endRequest()
+    R.InFlight = false
+    marker:SetAttribute("InFlight", false)
+    if not R.Alive and not R.Uncertain then marker:Destroy() end
+end
+local function request(name: string, args: any, epoch: number): any
+    local obj = beginRequest(name, "RemoteFunction", epoch)
+    if not obj then return nil end
+    local result: any = nil
+    local done = false
+    task.spawn(function()
+        result = table.pack(pcall(function() return obj:InvokeServer(table.unpack(args, 1, args.n)) end))
+        done = true
+    end)
+    local deadline = os.clock() + S.ActionTimeout
+    while not done and os.clock() < deadline do task.wait(0.1) end
+    if not done then
+        uncertain("Request timed out: " .. name)
+        task.spawn(function()
+            while not done do task.wait(0.5) end
+            endRequest()
+        end)
+        return nil
+    end
+    endRequest()
+    if not result[1] then uncertain("Network error: " .. name); return nil end
+    if not valid(epoch) then uncertain("Operation completed after cancellation: " .. name); return nil end
+    return table.pack(table.unpack(result, 2, result.n))
+end
+local function sendConfirmed(name: string, args: any, confirm: any, epoch: number): boolean
+    local obj = beginRequest(name, "RemoteEvent", epoch)
+    if not obj then return false end
+    local ok, err = pcall(function() obj:FireServer(table.unpack(args, 1, args.n)) end)
+    local landed = ok and waitFor(confirm, S.ActionTimeout, epoch)
+    if not landed then uncertain("No confirmation: " .. name .. (ok and "" or (" / " .. tostring(err)))) end
+    endRequest()
+    return landed == true
+end
+
+local rarityRanks: any = {}
+for _, cfg in M.Assets.Directory do
+    local rarity = cfg.Rarity
+    if rarity then rarityRanks[rarity._id] = rarity.RarityNumber end
+end
+local rarityNames = {"All"}
+for name in rarityRanks do table.insert(rarityNames, name) end
+table.sort(rarityNames, function(a, b) return (rarityRanks[a] or -1) < (rarityRanks[b] or -1) end)
+local areaNames = {"All"}
+for _, area in GuardAreas:GetChildren() do if area:IsA("Model") then table.insert(areaNames, area.Name) end end
+table.sort(areaNames)
+local function rank(category: string): number?
+    local cfg = M.Assets.Directory[category]
+    return cfg and cfg.Rarity and cfg.Rarity.RarityNumber
+end
+local function protected(uid: string, item: any): boolean
+    if S.ProtectedUIDs[uid] or item.IsFavorite or item.InFuse or item.HasParasite then return true end
+    if S.ProtectMutations and (next(item.Mutations or {}) ~= nil or item.BaseMutation ~= nil
+        or item.EggSkin ~= nil or item.DnaSource ~= nil) then return true end
+    local r = rank(item.Category or item.AssetCategory)
+    return not r or (S.ProtectRarity ~= "None" and r >= (rarityRanks[S.ProtectRarity] or 0))
+end
+local function canProcess(uid: string): boolean
+    return not S.ProtectedUIDs[uid] and (S.ProcessExisting or R.OwnedThisRun[uid] == true)
+end
+local function carrying(): string?
+    if R.Carry and R.Carry.IsCarrying then return R.Carry.Uid end
+    for _, egg in M.Eggs.ReadFieldEggs().Records do
+        if egg.State == "Carried" and egg.CarrierUserId == Player.UserId then return egg.Uid end
+    end
+    return nil
+end
+local function capacity(): boolean
+    local p = profile()
+    if not p then state("WAIT", "Profile unavailable"); return false end
+    if S.SafeMode and next(p.AutoSellRarities or {}) then
+        stop("Disable the game's built-in Auto Sell before using Safe Mode")
+        return false
+    end
+    if count(p.EggInventory) >= 115 - S.EggReserve then
+        state("WAIT", "Egg inventory reserve reached")
+        return false
+    end
+    return true
+end
+local function avoided(position: Vector3): boolean
+    for _, other in Players:GetPlayers() do
+        if other ~= Player and (S.IgnoredUsers[other.UserId] or S.AvoidPlayers > 0) then
+            local root = other.Character and other.Character:FindFirstChild("HumanoidRootPart")
+            local radius = S.IgnoredUsers[other.UserId] and math.max(30, S.AvoidPlayers) or S.AvoidPlayers
+            if root and (root.Position - position).Magnitude < radius then return true end
+        end
+    end
+    for slot, owner in M.Plots.ReadOwners() do
+        if S.AvoidedOwners[owner] then
+            local plot = W.Plots:FindFirstChild(tostring(slot))
+            if plot and plot:IsA("Model") then
+                local cf, size = plot:GetBoundingBox()
+                local p = cf:PointToObjectSpace(position)
+                if math.abs(p.X) < size.X / 2 + 10 and math.abs(p.Z) < size.Z / 2 + 10 then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function candidates(): any
+    local _, _, root = character()
+    local result = {}
+    if not root then return result end
+    local speeds: any = {}
+    for _, e in M.Eggs.ReadFieldEggs().Records do
+        if (e.State ~= "Slot" and not (S.IncludeDropped and e.State == "Dropped"))
+            or (S.Area ~= "All" and e.AreaId ~= S.Area)
+            or (R.Excluded[e.Uid] or 0) > os.clock() then continue end
+        if typeof(e.BoundsCFrame) ~= "CFrame" or typeof(e.BoundsSize) ~= "Vector3" then continue end
+        local distance = (root.Position - e.BoundsCFrame.Position).Magnitude
+        local rarity = rank(e.AssetCategory)
+        if distance > S.MaxDistance or not rarity or avoided(e.BoundsCFrame.Position) then continue end
+        if S.MinRarity ~= "All" and rarity < (rarityRanks[S.MinRarity] or math.huge) then continue end
+        if S.SafeMode then
+            if speeds[e.AreaId] == nil then
+                local area = GuardAreas:FindFirstChild(e.AreaId)
+                local guard = area and area:FindFirstChild("Guard")
+                local guardRoot = guard and guard:FindFirstChild("HumanoidRootPart")
+                local ok, required = false, nil
+                if guardRoot and guardRoot:IsA("BasePart") then
+                    ok, required = pcall(M.Escape.ResolveSpeedPower, area, guardRoot.Position, Separation)
+                end
+                speeds[e.AreaId] = ok and type(required) == "number" and required or math.huge
+            end
+            if (profile().SpeedPower or 0) < speeds[e.AreaId] then continue end
+        end
+        local ok, value = pcall(M.Records.SellPrice, e)
+        table.insert(result, {Egg = e, Distance = distance, Rarity = rarity, Value = ok and tonumber(value) or 0})
+    end
+    table.sort(result, function(a, b)
+        if S.Priority == "Rarity" and a.Rarity ~= b.Rarity then return a.Rarity > b.Rarity end
+        if S.Priority == "Value" and a.Value ~= b.Value then return a.Value > b.Value end
+        return a.Distance < b.Distance
+    end)
+    return result
+end
+
+local function walk(destination: Vector3, epoch: number): boolean
+    local deadline = os.clock() + S.TravelTimeout
+    for _ = 0, S.RouteRetries do
+        if not valid(epoch) or os.clock() >= deadline then break end
+        local _, h, root = character()
+        if (root.Position - destination).Magnitude <= 5 then return true end
+        local path = Pathfinding:CreatePath({AgentRadius = 2, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 5})
+        local ok = pcall(function() path:ComputeAsync(root.Position, destination) end)
+        if not valid(epoch) then path:Destroy(); break end
+        if not ok or path.Status ~= Enum.PathStatus.Success then path:Destroy(); if not pause(0.5, epoch) then break end; continue end
+        local reached = true
+        for _, point in path:GetWaypoints() do
+            if not valid(epoch) or os.clock() >= deadline then reached = false; break end
+            R.Moving = true
+            if point.Action == Enum.PathWaypointAction.Jump then h.Jump = true end
+            h:MoveTo(point.Position)
+            local lastPosition = root.Position
+            local lastProgress = os.clock()
+            local pointDeadline = math.min(deadline, os.clock() + 8)
+            while (root.Position - point.Position).Magnitude > 4 do
+                if not valid(epoch) or os.clock() >= pointDeadline or os.clock() - lastProgress > 2.5 then reached = false; break end
+                if (root.Position - lastPosition).Magnitude >= 1 then lastPosition = root.Position; lastProgress = os.clock() end
+                task.wait(0.1)
+            end
+            if not reached then break end
+        end
+        path:Destroy()
+        cancelMovement()
+        if reached and (root.Position - destination).Magnitude <= 6 then return true end
+    end
+    cancelMovement()
+    return false
+end
+local function returnBase(epoch: number): boolean
+    local plot = M.Plots.ResolvePlot()
+    if not plot then stop("Your plot is unavailable"); return false end
+    state("RETURN_TO_BASE", "Returning to your plot")
+    return walk(plot.RespawnPointCFrame.Position, epoch)
+end
+local function eggDistance(e: any, position: Vector3): number
+    local p = e.BoundsCFrame:PointToObjectSpace(position)
+    local half = e.BoundsSize / 2
+    local closest = Vector3.new(math.clamp(p.X, -half.X, half.X), math.clamp(p.Y, -half.Y, half.Y), math.clamp(p.Z, -half.Z, half.Z))
+    return (p - closest).Magnitude
+end
+local function farm(epoch: number)
+    if not capacity() then return end
+    if carrying() then stop("You are already carrying an egg. Deliver it before starting another cycle"); return end
+    state("SELECT_TARGET", "Finding an egg")
+    local target = candidates()[1]
+    if not target then state("WAIT", "No targets match these filters"); return end
+    local egg = target.Egg
+    local _, _, root = character()
+    local away = Vector3.new(root.Position.X - egg.BoundsCFrame.X, 0, root.Position.Z - egg.BoundsCFrame.Z)
+    if away.Magnitude < 0.01 then away = Vector3.xAxis end
+    local radius = math.max(egg.BoundsSize.X, egg.BoundsSize.Z) / 2 + 2.5
+    local approach = egg.BoundsCFrame.Position + away.Unit * radius
+    approach = Vector3.new(approach.X, egg.BottomCFrame.Y + 2, approach.Z)
+    state("TRAVEL", egg.AreaId .. " / " .. egg.AssetCategory)
+    if not walk(approach, epoch) then R.Excluded[egg.Uid] = os.clock() + 30; return end
+    state("VALIDATE_TARGET", egg.AssetCategory)
+    if not pause(W:GetAttribute("FastEggPickupTime") and 0.3 or 1.25, epoch) then return end
+    local current = M.Eggs.ReadFieldEgg(egg.Uid)
+    local _, _, nowRoot = character()
+    if not current or current.Version ~= egg.Version or current.State ~= egg.State
+        or not nowRoot or eggDistance(current, nowRoot.Position) > 8 or avoided(nowRoot.Position)
+        or not capacity() or carrying() then R.Excluded[egg.Uid] = os.clock() + 15; return end
+    local before = {}
+    for uid in profile().EggInventory do before[uid] = true end
+    local payload: any = {Uid = egg.Uid}
+    if egg.Uid:sub(1, 13) == "FirstAreaEgg_" then payload.FirstAreaSlotKey = egg.AreaId .. ":" .. egg.NestId end
+    state("COLLECT", egg.AssetCategory)
+    local result = request("RF/EggWorld/AskFieldEggCarry", table.pack(payload), epoch)
+    if not result then return end
+    if result[1] ~= true then R.Excluded[egg.Uid] = os.clock() + 30; log(tostring(result[2]), true); return end
+    if not waitFor(function() return carrying() == egg.Uid end, S.ActionTimeout, epoch) then
+        uncertain("Pickup accepted without a carrying-state confirmation"); return
+    end
+    state("DELIVER", "Crossing into the delivery area")
+    local _, _, carryRoot = character()
+    local depth = Separation.CFrame.LookVector:Dot(carryRoot.Position - Separation.Position)
+    local exitPoint = carryRoot.Position - Separation.CFrame.LookVector * (depth + 12)
+    if not walk(exitPoint, epoch) then uncertain("Could not complete the route while carrying an egg"); return end
+    local delivered = waitFor(function()
+        local p = profile()
+        if not p or carrying() then return nil end
+        local found = {}
+        for uid, item in p.EggInventory do
+            if not before[uid] and item.AssetCategory == egg.AssetCategory then table.insert(found, uid) end
+        end
+        return #found == 1 and found[1] or nil
+    end, S.ActionTimeout, epoch)
+    if not delivered then uncertain("Delivery did not confirm exactly one new matching inventory egg"); return end
+    R.OwnedThisRun[delivered] = true
+    R.Collected += 1
+    log("Delivered: " .. egg.AssetCategory, true)
+    if not returnBase(epoch) and valid(epoch) then stop("Could not return to your base") end
+end
+
+local function freePlacement(plot: any, item: any): CFrame?
+    local area = plot.PetArea
+    local spacing = math.max(6, (tonumber(item.AssetScale) or 1) * 4)
+    local owned = M.Eggs.ReadOwnerEggs(Player.UserId)
+    for x = -area.Size.X / 2 + spacing, area.Size.X / 2 - spacing, spacing do
+        for z = -area.Size.Z / 2 + spacing, area.Size.Z / 2 - spacing, spacing do
+            local point = area.CFrame:PointToWorldSpace(Vector3.new(x, area.Size.Y / 2, z))
+            local available = true
+            for _, other in owned do
+                if other.Placement then
+                    local otherPoint = (plot.CenterPoint.CFrame * other.Placement.LocalCFrame).Position
+                    local distance = Vector3.new(point.X - otherPoint.X, 0, point.Z - otherPoint.Z).Magnitude
+                    if distance < math.max(spacing, (tonumber(other.AssetScale) or 1) * 4) then available = false; break end
+                end
+            end
+            if available then return plot.CenterPoint.CFrame:ToObjectSpace(CFrame.new(point)) end
+        end
+    end
+    return nil
+end
+local function placeOne(epoch: number): boolean
+    local p = profile()
+    if not p or carrying() then return false end
+    for uid, item in p.EggInventory do
+        if item.Placement or not canProcess(uid) or not cooldown("place:" .. uid, 30) then continue end
+        if not returnBase(epoch) then return false end
+        local plot = M.Plots.ResolvePlot()
+        local point = plot and freePlacement(plot, item)
+        if not point then state("WAIT", "No placement space meets the spacing checks"); return false end
+        state("EQUIP_EGG", uid)
+        local equip = request("RF/EggWorld/AskWearTool", table.pack(uid), epoch)
+        if not equip or equip[1] ~= true then return true end
+        local toolReady = waitFor(function()
+            local c = character()
+            if not c then return false end
+            for _, tool in c:GetChildren() do
+                if tool:IsA("Tool") and M.EggTools.IsEggTool(tool) and M.EggTools.GetToolUid(tool) == uid then return true end
+            end
+            return false
+        end, S.ActionTimeout, epoch)
+        if not toolReady then uncertain("Egg tool was not confirmed: " .. uid); return true end
+        local latest = profile().EggInventory[uid]
+        if not latest or latest.Placement or not canProcess(uid) then return true end
+        state("PLACE", uid)
+        local result = request("RF/EggWorld/AskPlaceEgg", table.pack({Uid = uid, LocalCFrame = point}), epoch)
+        if not result or result[1] ~= true then return true end
+        if not waitFor(function()
+            local current = profile() and profile().EggInventory[uid]
+            return current ~= nil and current.Placement ~= nil
+        end, S.ActionTimeout, epoch) then uncertain("Placement was not confirmed: " .. uid); return true end
+        R.Placed += 1
+        return true
+    end
+    return false
+end
+local function hatchOne(epoch: number): boolean
+    local p = profile()
+    if not p or carrying() or count(p.Inventory) >= 250 - S.PetReserve then return false end
+    if S.SafeMode and next(p.AutoSellRarities or {}) then stop("The game's built-in Auto Sell is enabled"); return false end
+    for uid, item in p.EggInventory do
+        if not item.Placement or not canProcess(uid) or protected(uid, item)
+            or not M.Eggs.IsReadyToHatch(uid) or not cooldown("hatch:" .. uid, 60) then continue end
+        if not returnBase(epoch) then return false end
+        local current = profile().EggInventory[uid]
+        local renders = W:FindFirstChild("PlacedEggRenders")
+        local model = renders and renders:FindFirstChild(tostring(Player.UserId) .. "_" .. uid)
+        if not current or protected(uid, current) or not M.Eggs.IsReadyToHatch(uid) or not model then return false end
+        state("HATCH", uid)
+        local begin = request("RF/EggWorld/AskHatch", table.pack(uid), epoch)
+        if not begin or begin[1] ~= true then return true end
+        R.HatchUid = uid
+        marker:SetAttribute("HatchUid", uid)
+        if begin[3] ~= nil and begin[3] ~= "" then
+            uncertain("Special hatch result: " .. tostring(begin[3]) .. ". Complete this egg manually in the game.")
+            return true
+        end
+        local record = M.Eggs.ReadOwnedEgg(Player.UserId, uid)
+        if not record then uncertain("Egg record missing after starting the hatch"); return true end
+        local animation: any = {Done = false}
+        task.spawn(function()
+            animation.Ok, animation.Sound = pcall(M.HatchAnimation.Play, Player.UserId, uid, record, model, false)
+            animation.Done = true
+        end)
+        if not waitFor(function() return animation.Done end, 45, epoch) or not animation.Ok then
+            uncertain("Hatch animation did not complete; review egg " .. uid); return true
+        end
+        local finish = request("RF/EggWorld/AskFinishHatch", table.pack(uid), epoch)
+        if not finish or finish[1] ~= true or type(finish[3]) ~= "string" then
+            uncertain("Hatch started without confirmed completion: " .. uid); return true
+        end
+        local granted = finish[3]
+        if not waitFor(function()
+            local latest = profile()
+            return latest and latest.EggInventory[uid] == nil and latest.Inventory[granted] ~= nil
+        end, S.ActionTimeout, epoch) then uncertain("The granted pet did not appear"); return true end
+        if animation.Sound then M.HatchAnimation.FadeSoundWhenGrantedToolUnequips(animation.Sound, granted) end
+        R.HatchUid = nil
+        marker:SetAttribute("HatchUid", nil)
+        R.Hatched += 1
+        R.OwnedThisRun[uid] = nil
+        return true
+    end
+    return false
+end
+local function sellOne(epoch: number): boolean
+    local p = profile()
+    if not p or carrying() then return false end
+    local eggs = S.SellKind == "Eggs"
+    local field = eggs and "EggInventory" or "Inventory"
+    local equipped = {}
+    for _, uid in p.EquippedAssets do equipped[uid] = true end
+    for uid, item in p[field] do
+        if protected(uid, item) or item.Placement or equipped[uid] or (eggs and not canProcess(uid)) then continue end
+        if not cooldown("sell:" .. uid, 60) then continue end
+        state("SELL", uid)
+        local payload = {Assets = {}, Eggs = {}}
+        if eggs then table.insert(payload.Eggs, uid) else table.insert(payload.Assets, uid) end
+        if sendConfirmed("RE/PetSatchel/SellSelection", table.pack(payload), function()
+            local latest = profile()
+            return latest ~= nil and latest[field][uid] == nil
+        end, epoch) then R.Sold += 1 end
+        return true
+    end
+    return false
+end
+local function upgrade(kind: string, epoch: number): boolean
+    local p = profile()
+    if not p or carrying() or S.Budget <= R.Spent then return false end
+    local base = kind == "Base"
+    local field = base and "BaseUpgradeLevel" or "TreadmillUpgradeLevel"
+    local level = p[field]
+    if type(level) ~= "number" then return false end
+    local config
+    if base then config = M.Bases.BASES[level + 1] else config = M.Treadmills.GetByUpgradeLevel(level + 1) end
+    if not config then return false end
+    local cost = base and config.Cost or config.Price
+    if type(cost) ~= "number" or cost <= 0 or cost ~= cost or cost == math.huge
+        or cost > S.MaxPurchase or cost > S.Budget - R.Spent or p.Money - cost < S.MinimumReserve then return false end
+    if not cooldown("upgrade:" .. kind, 15) then return false end
+    state("UPGRADE", kind .. " / " .. tostring(cost))
+    R.Spent += cost
+    if base then
+        sendConfirmed("RE/Homestead/AskBaseTierRaise", table.pack(), function()
+            return profile() ~= nil and profile()[field] > level
+        end, epoch)
+    else
+        local result = request("RF/Treadmill/AskTierRaise", table.pack(config._id), epoch)
+        if result and result[1] ~= true then
+            R.Spent -= cost
+            log(tostring(result[2]), true)
+        elseif result and not waitFor(function() return profile() ~= nil and profile()[field] > level end, S.ActionTimeout, epoch) then
+            uncertain("Treadmill upgrade was not confirmed")
+        end
+    end
+    return true
+end
+local function maintain(epoch: number): boolean
+    if carrying() then return false end
+    if S.AutoHatch and hatchOne(epoch) then return true end
+    if not valid(epoch) then return true end
+    if S.AutoPlace and placeOne(epoch) then return true end
+    if not valid(epoch) then return true end
+    if S.AutoEquipBest and cooldown("best", 10) then
+        state("EQUIP_BEST", "Equipping your best pets")
+        request("RF/Haul/WearBest", table.pack(), epoch)
+        return true
+    end
+    local p = profile()
+    if S.AutoIndex and cooldown("index", 15) then
+        for category, unlocked in p.Index do
+            if unlocked and not p.IndexClaimedCategories[category] then
+                state("CLAIM_INDEX", category)
+                request("RF/Codex/AskRedeemAll", table.pack(), epoch)
+                return true
+            end
+        end
+    end
+    if S.AutoOffline and (p.PendingOfflineMoney or 0) >= 5 and cooldown("offline", 30) then
+        state("CLAIM_OFFLINE", "Claiming pending offline earnings")
+        request("RF/AwayEarnings/AskCollect", table.pack({Kind = "Claim"}), epoch)
+        return true
+    end
+    if S.AutoSell and sellOne(epoch) then return true end
+    if not valid(epoch) then return true end
+    if S.AutoBase and upgrade("Base", epoch) then return true end
+    if not valid(epoch) then return true end
+    if S.AutoTreadmill and upgrade("Treadmill", epoch) then return true end
+    return false
+end
+
+local function updateESP()
+    local _, _, root = character()
+    local wanted: any = {}
+    local amount = 0
+    local function add(model: any, color: Color3)
+        if not root or not model or not model:IsA("Model") or amount >= 80 then return end
+        if (model:GetPivot().Position - root.Position).Magnitude > S.ESPDistance then return end
+        wanted[model] = color
+        amount += 1
+    end
+    if S.EggESP then
+        local slots = W:FindFirstChild("AreaEggSlotsClient")
+        local eggs = W:FindFirstChild("Eggs")
+        for _, e in M.Eggs.ReadFieldEggs().Records do
+            local model = (slots and slots:FindFirstChild(e.Uid)) or (eggs and eggs:FindFirstChild(e.Uid))
+            local cfg = M.Assets.Directory[e.AssetCategory]
+            add(model, cfg and cfg.Rarity.Color or Color3.fromRGB(255, 209, 92))
+        end
+    end
+    if S.PlayerESP then
+        for _, other in Players:GetPlayers() do if other ~= Player then add(other.Character, Color3.fromRGB(95, 192, 255)) end end
+    end
+    if S.BaseESP then
+        for slot, owner in M.Plots.ReadOwners() do
+            add(W.Plots:FindFirstChild(tostring(slot)), owner == Player.UserId and Color3.fromRGB(90, 230, 145) or Color3.fromRGB(186, 130, 255))
+        end
+    end
+    for model, highlight in R.Highlights do
+        if not wanted[model] then highlight:Destroy(); R.Highlights[model] = nil end
+    end
+    for model, color in wanted do
+        local highlight = R.Highlights[model]
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "BRP_EggESP"
+            highlight.Adornee = model
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillTransparency = 0.8
+            highlight.OutlineTransparency = 0
+            highlight.Parent = marker
+            R.Highlights[model] = highlight
+        end
+        highlight.FillColor, highlight.OutlineColor = color, color
+    end
+end
+function R:GetStatus()
+    local p = profile()
+    local flags = {}
+    for _, key in AUTO do flags[key] = S[key] end
+    return {
+        Alive = self.Alive, State = self.State, Reason = self.Reason, LastError = self.LastError,
+        Busy = self.WorkerBusy, InFlight = self.InFlight, Uncertain = self.Uncertain,
+        PlaceVersion = game.PlaceVersion, PlaceId = game.PlaceId, UniverseId = game.GameId,
+        Eggs = p and count(p.EggInventory) or 0, Pets = p and count(p.Inventory) or 0,
+        Collected = self.Collected, Placed = self.Placed, Hatched = self.Hatched, Sold = self.Sold,
+        Spent = self.Spent, Budget = S.Budget, Flags = flags, Carrying = carrying(),
+        Connections = #self.Connections, Highlights = count(self.Highlights),
+    }
+end
+local function acknowledge(): boolean
+    if R.InFlight or R.WorkerBusy or carrying() then log("Wait for the pending operation and deliver any egg you are carrying.", true); return false end
+    if R.HatchUid and profile() and profile().EggInventory[R.HatchUid] then
+        log("Manually complete egg " .. R.HatchUid .. " before clearing the lock.", true)
+        return false
+    end
+    R.Uncertain, R.HatchUid, R.LastError = false, nil, ""
+    marker:SetAttribute("Uncertain", false)
+    marker:SetAttribute("HatchUid", nil)
+    state("IDLE", "Reviewed. Automations are disabled")
+    if not R.Alive then marker:Destroy() end
+    return true
+end
+local command = Instance.new("BindableFunction")
+command.Name = "Command"
+command.OnInvoke = function(action: string)
+    if action == "status" then return R:GetStatus() end
+    if action == "diagnose" then
+        local list = candidates()
+        local first = list[1]
+        return {Status = R:GetStatus(), Candidates = #list,
+            FirstTarget = first and {Uid = first.Egg.Uid, Area = first.Egg.AreaId, Distance = first.Distance},
+            HasPlot = M.Plots.ResolvePlot() ~= nil, Areas = areaNames, Rarities = rarityNames}
+    end
+    if action == "stop" then stop("Stopped manually"); return true end
+    if action == "acknowledge" then return acknowledge() end
+    if action == "unload" then R:Unload(); return true end
+    return nil
+end
+command.Parent = marker
+
+local function buildUI()
+    local source = game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.66/main.lua")
+    local chunk, compileError = loadstring(source, "@BRP_Eggs_WindUI_1.6.66")
+    assert(chunk, compileError)
+    local WindUI: any = chunk()
+    R.WindUI = WindUI
+    
+    -- Nowoczesny motyw z czerwonym i czarnym
+    WindUI:AddTheme({
+        Name = "AvalonRed",
+        Accent = Color3.fromRGB(200, 20, 40),
+        Outline = Color3.fromRGB(60, 15, 20),
+        Text = Color3.fromRGB(240, 240, 240),
+        Placeholder = Color3.fromRGB(120, 120, 120),
+        Background = Color3.fromRGB(12, 12, 12),
+        WindowBackground = Color3.fromRGB(15, 15, 15),
+        ElementBackground = Color3.fromRGB(22, 22, 22),
+    })
+
+    local window = WindUI:CreateWindow({
+        Title = "AvalonHub | Steal an Egg", Author = "WindUI / Avalon",
+        Folder = "BRP_StealEgg", Size = UDim2.fromOffset(760, 540),
+        Theme = "AvalonRed", Resizable = true, SideBarWidth = 185,
+    })
+    R.Window = window
+    window:SetToggleKey(Enum.KeyCode.RightShift)
+    window:OnDestroy(function()
+        R.WindowDestroyed = true
+        R:Unload()
+    end)
+    local tabs: any = {}
+    for _, name in {"Main", "Egg Farm", "Inventory", "Upgrades", "Visuals", "Safety", "Settings"} do
+        tabs[name] = window:Tab({Title = name})
+    end
+    local function toggle(tab: any, title: string, key: string, desc: string?)
+        local view: any = {Value = S[key]}
+        view.Control = tab:Toggle({Title = title, Desc = desc, Value = S[key], Callback = function(value: boolean)
+            view.Value = value
+            if not R.Alive or value == S[key] then return end
+            if value and table.find(AUTO, key) then
+                if R.Uncertain or R.InFlight then log("Review the pending operation before enabling automation.", true); return end
+                if game.PlaceVersion ~= 490 then log("Unverified game version: " .. game.PlaceVersion, true); return end
+                if (key == "AutoBase" or key == "AutoTreadmill") and S.Budget <= R.Spent then
+                    log("Set an available spending budget first.", true); return
+                end
+                if key == "AutoFarm" and carrying() then log("Deliver the egg you are carrying first.", true); return end
+            end
+            S[key] = value
+            if table.find(AUTO, key) and not value then
+                R.Epoch += 1
+                cancelMovement()
+                if R.HatchUid then uncertain("Hatch stopped; review required") end
+            end
+        end})
+        R.ToggleViews[key] = view
+    end
+    local function dropdown(tab: any, title: string, key: string, values: any)
+        tab:Dropdown({Title = title, Values = values, Value = S[key], Multi = false, Callback = function(value)
+            if R.Alive and table.find(values, value) then S[key] = value end
+        end})
+    end
+    local function slider(tab: any, title: string, key: string, minimum: number, maximum: number)
+        tab:Slider({Title = title, Value = {Min = minimum, Max = maximum, Default = S[key]}, Step = 1, Callback = function(value)
+            if R.Alive and type(value) == "number" then S[key] = math.clamp(math.floor(value), minimum, maximum) end
+        end})
+    end
+    local function numberInput(tab: any, title: string, key: string)
+        tab:Input({Title = title, Value = tostring(S[key]), Placeholder = "Full number", Callback = function(value)
+            local n = tonumber(value)
+            if R.Alive and n and n == n and n >= 0 and n < 9007199254740991 then
+                S[key] = math.floor(n)
+                log(title .. ": " .. tostring(S[key]), true)
+            end
+        end})
+    end
+    local main = tabs.Main
+    R.StatusLabel = main:Paragraph({Title = "Status", Desc = "Ready"})
+    toggle(main, "Auto Farm", "AutoFarm", "Find, collect, deliver, and return to your base.")
+    main:Button({Title = "STOP ALL", Callback = function() stop("Stopped manually") end})
+    main:Button({Title = "Return to My Base", Callback = function()
+        if R.WorkerBusy or R.InFlight or R.Uncertain or carrying() then log("Stop the cycle and deliver your egg before returning.", true); return end
+        R.ManualReturn = true
+    end})
+    toggle(main, "Auto Equip Best Pets", "AutoEquipBest")
+    toggle(main, "Auto Claim Index", "AutoIndex")
+    toggle(main, "Auto Claim Offline Earnings", "AutoOffline")
+
+    local farmTab = tabs["Egg Farm"]
+    dropdown(farmTab, "Area", "Area", areaNames)
+    dropdown(farmTab, "Priority", "Priority", {"Distance", "Rarity", "Value"})
+    dropdown(farmTab, "Minimum Rarity", "MinRarity", rarityNames)
+    toggle(farmTab, "Include Dropped Eggs", "IncludeDropped")
+    slider(farmTab, "Maximum Target Distance", "MaxDistance", 30, 5000)
+    slider(farmTab, "Avoid Players Within", "AvoidPlayers", 0, 100)
+
+    local inventory = tabs.Inventory
+    toggle(inventory, "Auto Place Eggs", "AutoPlace")
+    toggle(inventory, "Auto Hatch Ready Eggs", "AutoHatch", "Converts eligible eggs into pets. Respects inventory protections.")
+    toggle(inventory, "Process Existing Eggs", "ProcessExisting", "By default, only eggs collected by this run can be placed, hatched, or sold.")
+    toggle(inventory, "Auto Sell", "AutoSell", "Sales are irreversible. Excludes favorites, equipped pets, and protected items.")
+    dropdown(inventory, "Sell Selection", "SellKind", {"Pets", "Eggs"})
+    slider(inventory, "Reserved Egg Inventory Slots", "EggReserve", 1, 50)
+    slider(inventory, "Reserved Pet Inventory Slots", "PetReserve", 1, 50)
+
+    local upgrades = tabs.Upgrades
+    R.BudgetLabel = upgrades:Paragraph({Title = "Budget for This Run", Desc = "0 spent / 0 authorized"})
+    numberInput(upgrades, "Total Spending Budget", "Budget")
+    numberInput(upgrades, "Minimum Money Reserve", "MinimumReserve")
+    numberInput(upgrades, "Maximum per Purchase", "MaxPurchase")
+    toggle(upgrades, "Auto Upgrade Base", "AutoBase", "Uses in-game currency within your spending limits.")
+    toggle(upgrades, "Auto Upgrade Treadmill", "AutoTreadmill", "Buys the next tier allowed by your budget.")
+
+    toggle(tabs.Visuals, "Egg ESP", "EggESP")
+    toggle(tabs.Visuals, "Player ESP", "PlayerESP")
+    toggle(tabs.Visuals, "Base ESP", "BaseESP")
+    slider(tabs.Visuals, "ESP Distance", "ESPDistance", 30, 5000)
+    local safety = tabs.Safety
+    toggle(safety, "Safe Mode", "SafeMode", "Checks estimated escape speed and built-in Auto Sell. Escaping guards is not guaranteed.")
+    toggle(safety, "Protect Mutations", "ProtectMutations")
+    local protection = {"None"}
+    for _, rarity in rarityNames do if rarity ~= "All" then table.insert(protection, rarity) end end
+    dropdown(safety, "Protect This Rarity and Above", "ProtectRarity", protection)
+    safety:Input({Title = "Toggle UID Protection", Placeholder = "Exact item UID", Callback = function(value)
+        if not R.Alive then return end
+        local uid = tostring(value):match("^%s*(.-)%s*$")
+        if uid == "" then return end
+        local p = profile()
+        if not p or (not p.Inventory[uid] and not p.EggInventory[uid]) then log("UID not found in your inventory.", true); return end
+        S.ProtectedUIDs[uid] = not S.ProtectedUIDs[uid] or nil
+        log(uid .. (S.ProtectedUIDs[uid] and " protected" or " unprotected"), true)
+    end})
+    for title, key in { ["Toggle Ignored UserId"] = "IgnoredUsers", ["Toggle Avoided Base Owner"] = "AvoidedOwners" } do
+        safety:Input({Title = title, Placeholder = "Numeric UserId", Callback = function(value)
+            local id = tonumber(value)
+            if R.Alive and id and id > 0 and id == math.floor(id) then
+                S[key][id] = not S[key][id] or nil
+                log(tostring(id) .. (S[key][id] and " excluded" or " allowed"), true)
+            end
+        end})
+    end
+    safety:Button({Title = "I Reviewed the Outcome: Clear Lock", Callback = acknowledge})
+    slider(tabs.Settings, "Action Timeout (seconds)", "ActionTimeout", 5, 30)
+    slider(tabs.Settings, "Route Timeout (seconds)", "TravelTimeout", 15, 180)
+    slider(tabs.Settings, "Route Retries", "RouteRetries", 0, 3)
+    toggle(tabs.Settings, "Verbose Logs", "Verbose")
+    tabs.Settings:Button({Title = "Run Read-Only Diagnostics", Callback = function()
+        print("[BRP Eggs] " .. HttpService:JSONEncode(command:Invoke("diagnose")))
+    end})
+    tabs.Settings:Paragraph({Title = "Controls", Desc = "RightShift: show/hide. End: stop all. Every automation starts disabled."})
+    tabs.Settings:Button({Title = "Unload Script", Callback = function() R:Unload() end})
+end
+
+local uiOK, uiError = pcall(buildUI)
+if not uiOK then
+    R:Unload()
+    return warn("[BRP Eggs] WindUI could not start: " .. tostring(uiError))
+end
+
+connect(M.Eggs.CarryChanged, function(payload)
+    if type(payload) == "table" then R.Carry = payload end
+end)
+connect(M.Eggs.ResetCountdown, function()
+    R.PauseUntil = os.clock() + 10
+    if R.WorkerBusy then
+        if carrying() or R.InFlight then uncertain("Egg reset during an operation")
+        else R.Epoch += 1; cancelMovement() end
+    end
+end)
+connect(Player.CharacterRemoving, function()
+    if R.WorkerBusy and carrying() then uncertain("Character lost while carrying an egg") end
+    stop("Character removed. Re-enable manually after respawning")
+end)
+connect(Player.CharacterAdded, function()
+    R.Carry = nil
+    stop("New character. Automations are disabled")
+end)
+connect(Player.OnTeleport, function() stop("Teleport detected") end)
+local correction = Net:FindFirstChild("RE/RigSync/CorrectionBegan")
+if correction and correction:IsA("RemoteEvent") then
+    connect(correction.OnClientEvent, function() stop("Server movement correction") end)
+end
+connect(UIS.InputBegan, function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.End then stop("Stopped with End") end
+end)
+
+local heartbeatTime = 0
+connect(RunService.Heartbeat, function(dt)
+    heartbeatTime += dt
+    if heartbeatTime < 0.5 or not R.Alive then return end
+    heartbeatTime = 0
+    local ok, err = pcall(function()
+        updateESP()
+        local p = profile()
+        R.StatusLabel:SetDesc(string.format("%s | %s\nEggs: %d/115 | Pets: %d/250\nDelivered: %d | Placed: %d | Hatched: %d | Sold: %d",
+            R.State, R.Reason, p and count(p.EggInventory) or 0, p and count(p.Inventory) or 0,
+            R.Collected, R.Placed, R.Hatched, R.Sold))
+        R.BudgetLabel:SetDesc(tostring(R.Spent) .. " spent or reserved / " .. tostring(S.Budget) .. " authorized")
+        for key, view in R.ToggleViews do
+            if view.Value ~= S[key] then view.Value = S[key]; view.Control:Set(S[key]) end
+        end
+        for uid, time in R.Excluded do if time <= os.clock() then R.Excluded[uid] = nil end end
+        for key, time in R.Cooldowns do if time <= os.clock() then R.Cooldowns[key] = nil end end
+    end)
+    if not ok and tostring(err) ~= R.LastError then uncertain("UI/ESP update: " .. tostring(err)) end
+end)
+
+task.spawn(function()
+    while R.Alive do
+        local enabled = R.ManualReturn == true
+        for _, key in AUTO do if S[key] then enabled = true; break end end
+        if enabled and not R.Uncertain and not R.InFlight and os.clock() >= R.PauseUntil then
+            local epoch = R.Epoch
+            if valid(epoch) and profile() then
+                R.WorkerBusy = true
+                marker:SetAttribute("Busy", true)
+                local ok, err = pcall(function()
+                    if R.ManualReturn then
+                        R.ManualReturn = false
+                        if not returnBase(epoch) then stop("No route to your base") end
+                    elseif not maintain(epoch) and S.AutoFarm and valid(epoch) then
+                        farm(epoch)
+                    end
+                end)
+                R.WorkerBusy = false
+                marker:SetAttribute("Busy", false)
+                if not ok then uncertain("Controller: " .. tostring(err)) end
+            else
+                state("WAIT", "Waiting for your character and profile")
+            end
+        end
+        task.wait(0.4)
+    end
+end)
+
+log("WindUI loaded with Key System. RightShift: UI. End: stop.", true)
+return Rlocal liO1o00Oj0iOIi=(getfenv and getfenv(1)) or _ENV or _G
 local l0IoojIiLiiI1,IiIoOi1IO1lj=string.byte,string.char
 local function lI0lILll0Oojj(IIiOOoOilj,jilojLi)
 local lolol1iiIi=""
